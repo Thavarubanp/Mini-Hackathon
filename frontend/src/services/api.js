@@ -106,4 +106,55 @@ export const hospitalApi = {
     }
     return response.json();
   },
+
+  getById: async (id) => {
+    const response = await fetch(`${API_BASE}/hospitals/${id}`, {
+      headers: getHeaders(),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Failed to fetch hospital (${response.status})`);
+    }
+    return response.json();
+  },
+
+  create: async (data) => {
+    const response = await fetch(`${API_BASE}/hospitals`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      const msg = typeof errData === 'object' && errData.ContactNumber ? errData.ContactNumber[0] : (errData.message || `Failed to create hospital (${response.status})`);
+      throw new Error(msg);
+    }
+    return response.json();
+  },
+
+  update: async (id, data) => {
+    const response = await fetch(`${API_BASE}/hospitals/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      const msg = typeof errData === 'object' && errData.ContactNumber ? errData.ContactNumber[0] : (errData.message || `Failed to update hospital (${response.status})`);
+      throw new Error(msg);
+    }
+    return response.json();
+  },
+
+  delete: async (id) => {
+    const response = await fetch(`${API_BASE}/hospitals/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Failed to delete hospital (${response.status})`);
+    }
+    return true;
+  },
 };
