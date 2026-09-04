@@ -10,7 +10,7 @@ namespace backend.Data
         }
 
         public DbSet<Hospital> Hospitals { get; set; } = null!;
-        public DbSet<Patient> Patients { get; set; } = null!;
+        public DbSet<Doctor> Doctors { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -25,15 +25,19 @@ namespace backend.Data
                 entity.Property(h => h.ContactNumber).IsRequired().HasMaxLength(10);
             });
 
-            // ── Patient ───────────────────────────────────────────────────
-            modelBuilder.Entity<Patient>(entity =>
+            modelBuilder.Entity<Doctor>(entity =>
             {
-                entity.HasKey(p => p.Id);
-                entity.Property(p => p.FullName).IsRequired().HasMaxLength(200);
-                entity.Property(p => p.NIC).IsRequired().HasMaxLength(20);
-                entity.HasIndex(p => p.NIC).IsUnique();  // NIC must be unique
-                entity.Property(p => p.PhoneNumber).IsRequired().HasMaxLength(10);
-                entity.Property(p => p.District).IsRequired().HasMaxLength(100);
+                entity.HasKey(d => d.Id);
+                entity.Property(d => d.FullName).IsRequired().HasMaxLength(200);
+                entity.Property(d => d.Specialization).IsRequired().HasMaxLength(100);
+                entity.Property(d => d.AvailableDay).IsRequired().HasMaxLength(20);
+                entity.Property(d => d.AvailableStartTime).IsRequired();
+                entity.Property(d => d.AvailableEndTime).IsRequired();
+
+                entity.HasOne(d => d.Hospital)
+                      .WithMany()
+                      .HasForeignKey(d => d.HospitalId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }

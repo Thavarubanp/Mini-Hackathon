@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +14,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Add JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? "SuwaSewaLK_SecretKey_For_JWT_Authentication_2026_Hackathon!";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "SuwaSewaLK";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "SuwaSewaLKClients";
 
 builder.Services.AddAuthentication(options =>
 {
@@ -29,69 +30,42 @@ builder.Services.AddAuthentication(options =>
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
-        ValidateIssuer = false,
-        ValidateAudience = false,
-        ValidateLifetime = false,
-        RoleClaimType = ClaimTypes.Role,
-        NameClaimType = ClaimTypes.Name,
-        ClockSkew = TimeSpan.FromMinutes(5)
-    };
-    options.Events = new JwtBearerEvents
-    {
-        OnMessageReceived = context =>
-        {
-            string authHeader = context.Request.Headers["Authorization"].ToString();
-            if (!string.IsNullOrWhiteSpace(authHeader))
-            {
-                var token = authHeader.Trim();
-                while (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                {
-                    token = token.Substring(7).Trim();
-                }
-                token = token.Trim('"');
-                context.Token = token;
-            }
-            return Task.CompletedTask;
-        },
-        OnAuthenticationFailed = context =>
-        {
-            Console.WriteLine($"[JWT Error] Authentication failed: {context.Exception.Message}");
-            return Task.CompletedTask;
-        }
+        ValidateIssuer = true,
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = true,
+        ValidAudience = jwtAudience,
+        ValidateLifetime = true,
+        RoleClaimType = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
     };
 });
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend",
-        policy =>
-        {
-            policy.WithOrigins("http://localhost:5173")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-});
-
-// Configure Swagger with HTTP Bearer Auth support
+// Configure Swagger with JWT Auth support
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Suwa Sewa LK - Hospital API", Version = "v1" });
-    
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Suwa Sewa LK - Hospital & Doctor API", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Paste your JWT token string directly.",
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
         Name = "Authorization",
         In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -101,9 +75,12 @@ builder.Services.AddSwaggerGen(c =>
                 {
                     Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
-                }
+                },
+                Scheme = "oauth2",
+                Name = "Bearer",
+                In = ParameterLocation.Header
             },
-            Array.Empty<string>()
+            new List<string>()
         }
     });
 });
@@ -117,9 +94,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseCors("AllowAll");
+
 // app.UseHttpsRedirection();
 
-app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
