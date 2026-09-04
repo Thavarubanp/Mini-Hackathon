@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace SuwaSewa.Api.DTOs
+namespace backend.DTOs
 {
     // Used when a Patient books for themself; PatientId is optional here because
     // the controller fills it from the JWT for Patient callers. Admin must supply it.

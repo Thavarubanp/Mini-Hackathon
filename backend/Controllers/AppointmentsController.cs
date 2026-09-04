@@ -5,20 +5,20 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SuwaSewa.Api.Data;      // adjust namespace to match your actual DbContext location
-using SuwaSewa.Api.DTOs;
-using SuwaSewa.Api.Models;
+using backend.Data;
+using backend.DTOs;
+using backend.Models;
 
-namespace SuwaSewa.Api.Controllers
+namespace backend.Controllers
 {
     [ApiController]
     [Route("api/appointments")]
     [Authorize] // every action requires a logged-in user; specific roles tightened per-action
     public class AppointmentsController : ControllerBase
     {
-        private readonly AppDbContext _db;
+        private readonly ApplicationDbContext _db;
 
-        public AppointmentsController(AppDbContext db)
+        public AppointmentsController(ApplicationDbContext db)
         {
             _db = db;
         }

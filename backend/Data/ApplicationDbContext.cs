@@ -11,6 +11,8 @@ namespace backend.Data
 
         public DbSet<Hospital> Hospitals { get; set; } = null!;
         public DbSet<Doctor> Doctors { get; set; } = null!;
+        public DbSet<Patient> Patients { get; set; } = null!;
+        public DbSet<Appointment> Appointments { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -37,6 +39,23 @@ namespace backend.Data
                 entity.HasOne(d => d.Hospital)
                       .WithMany()
                       .HasForeignKey(d => d.HospitalId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<Appointment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Reason).IsRequired().HasMaxLength(300);
+                entity.Property(a => a.Status).IsRequired().HasMaxLength(20);
+
+                entity.HasOne(a => a.Patient)
+                      .WithMany()
+                      .HasForeignKey(a => a.PatientId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(a => a.Doctor)
+                      .WithMany()
+                      .HasForeignKey(a => a.DoctorId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
         }
