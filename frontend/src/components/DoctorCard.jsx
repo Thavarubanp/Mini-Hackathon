@@ -1,7 +1,9 @@
 import React from 'react';
 import { HospitalIcon, CalendarIcon, ClockIcon, EditIcon, TrashIcon } from './Icons';
 
-export const DoctorCard = ({ doctor, onEdit, onDelete }) => {
+export const DoctorCard = ({ doctor, userRole = 'Admin', onEdit, onDelete }) => {
+  const isAdmin = userRole === 'Admin';
+
   // Get initials for avatar
   const getInitials = (name) => {
     if (!name) return 'DR';
@@ -50,20 +52,28 @@ export const DoctorCard = ({ doctor, onEdit, onDelete }) => {
       </div>
 
       <div className="doctor-card-footer">
-        <button
-          className="btn-icon"
-          title="Edit Doctor"
-          onClick={() => onEdit(doctor)}
-        >
-          <EditIcon size={16} />
-        </button>
-        <button
-          className="btn-icon danger"
-          title="Delete Doctor"
-          onClick={() => onDelete(doctor)}
-        >
-          <TrashIcon size={16} />
-        </button>
+        {isAdmin ? (
+          <>
+            <button
+              className="btn-icon"
+              title="Edit Doctor (Admin only)"
+              onClick={() => onEdit(doctor)}
+            >
+              <EditIcon size={16} />
+            </button>
+            <button
+              className="btn-icon danger"
+              title="Delete Doctor (Admin only)"
+              onClick={() => onDelete(doctor)}
+            >
+              <TrashIcon size={16} />
+            </button>
+          </>
+        ) : (
+          <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
+            Read-Only ({userRole} Mode)
+          </span>
+        )}
       </div>
     </div>
   );

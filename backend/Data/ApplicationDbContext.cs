@@ -42,21 +42,38 @@ namespace backend.Data
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
+            modelBuilder.Entity<Patient>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.FullName).IsRequired().HasMaxLength(200);
+                entity.Property(p => p.NIC).IsRequired().HasMaxLength(20);
+                entity.Property(p => p.PhoneNumber).IsRequired().HasMaxLength(15);
+                entity.Property(p => p.District).IsRequired().HasMaxLength(100);
+                entity.HasIndex(p => p.NIC).IsUnique();
+            });
+
             modelBuilder.Entity<Appointment>(entity =>
             {
                 entity.HasKey(a => a.Id);
-                entity.Property(a => a.Reason).IsRequired().HasMaxLength(300);
-                entity.Property(a => a.Status).IsRequired().HasMaxLength(20);
+                entity.Property(a => a.PatientName).IsRequired().HasMaxLength(200);
+                entity.Property(a => a.DoctorName).IsRequired().HasMaxLength(200);
+                entity.Property(a => a.HospitalName).IsRequired().HasMaxLength(200);
+                entity.Property(a => a.Status).IsRequired().HasMaxLength(50);
 
-                entity.HasOne(a => a.Patient)
+                entity.HasOne(a => a.Hospital)
                       .WithMany()
-                      .HasForeignKey(a => a.PatientId)
+                      .HasForeignKey(a => a.HospitalId)
                       .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(a => a.Doctor)
                       .WithMany()
                       .HasForeignKey(a => a.DoctorId)
                       .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(a => a.Patient)
+                      .WithMany()
+                      .HasForeignKey(a => a.PatientId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

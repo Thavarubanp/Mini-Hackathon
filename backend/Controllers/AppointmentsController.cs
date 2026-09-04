@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,266 +12,198 @@ using backend.Models;
 namespace backend.Controllers
 {
     [ApiController]
-    [Route("api/appointments")]
-    [Authorize] // every action requires a logged-in user; specific roles tightened per-action
+    [Route("api/[controller]")]
+    [Authorize]
     public class AppointmentsController : ControllerBase
     {
-        private readonly ApplicationDbContext _db;
+        private readonly ApplicationDbContext _context;
 
-        public AppointmentsController(ApplicationDbContext db)
+        public AppointmentsController(ApplicationDbContext context)
         {
-            _db = db;
+            _context = context;
         }
 
-        // ---------- Claim helpers ----------
-
-        private string? GetRole() => User.FindFirst(ClaimTypes.Role)?.Value
-                                      ?? User.FindFirst("role")?.Value;
-
-        private int? GetTokenPatientId()
-        {
-            var v = User.FindFirst("patientId")?.Value;
-            return int.TryParse(v, out var id) ? id : null;
-        }
-
-        private int? GetTokenDoctorId()
-        {
-            var v = User.FindFirst("doctorId")?.Value;
-            return int.TryParse(v, out var id) ? id : null;
-        }
-
-        private bool IsAdmin() => GetRole() == "Admin";
-
-        // ---------- Mapping ----------
-
-        private static AppointmentDto ToDto(Appointment a) => new()
-        {
-            Id = a.Id,
-            PatientId = a.PatientId,
-            PatientName = a.Patient?.FullName ?? "",
-            DoctorId = a.DoctorId,
-            DoctorName = a.Doctor?.FullName ?? "",
-            Specialization = a.Doctor?.Specialization ?? "",
-            AppointmentDate = a.AppointmentDate,
-            AppointmentTime = a.AppointmentTime,
-            Reason = a.Reason,
-            QueueNumber = a.QueueNumber,
-            Status = a.Status
-        };
-
-        private IQueryable<Appointment> BaseQuery() =>
-            _db.Appointments.Include(a => a.Patient).Include(a => a.Doctor);
-
-        // ---------- GET /api/appointments  (Admin only, optional ?status= & ?date=) ----------
+        // GET: api/appointments
         [HttpGet]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetAll([FromQuery] string? status, [FromQuery] DateTime? date)
+        public async Task<ActionResult<IEnumerable<AppointmentResponseDto>>> GetAll(
+            [FromQuery] int? doctorId,
+            [FromQuery] int? patientId,
+            [FromQuery] int? hospitalId,
+            [FromQuery] string? status)
         {
-            var query = BaseQuery();
+            var query = _context.Appointments.AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(status))
-                query = query.Where(a => a.Status == status);
+            if (doctorId.HasValue) query = query.Where(a => a.DoctorId == doctorId.Value);
+            if (patientId.HasValue) query = query.Where(a => a.PatientId == patientId.Value);
+            if (hospitalId.HasValue) query = query.Where(a => a.HospitalId == hospitalId.Value);
+            if (!string.IsNullOrWhiteSpace(status)) query = query.Where(a => a.Status == status);
 
-            if (date.HasValue)
-                query = query.Where(a => a.AppointmentDate.Date == date.Value.Date);
-
-            var results = await query.OrderByDescending(a => a.AppointmentDate).ToListAsync();
-            return Ok(results.Select(ToDto));
-        }
-
-        // ---------- GET /api/appointments/{id}  (ownership check) ----------
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
-        {
-            var appt = await BaseQuery().FirstOrDefaultAsync(a => a.Id == id);
-            if (appt == null) return NotFound();
-
-            if (!IsAdmin())
-            {
-                var role = GetRole();
-                if (role == "Patient" && appt.PatientId != GetTokenPatientId()) return Forbid();
-                if (role == "Doctor" && appt.DoctorId != GetTokenDoctorId()) return Forbid();
-            }
-
-            return Ok(ToDto(appt));
-        }
-
-        // ---------- GET /api/appointments/patient/{patientId}  (own only) ----------
-        [HttpGet("patient/{patientId}")]
-        [Authorize(Roles = "Patient,Admin")]
-        public async Task<IActionResult> GetByPatient(int patientId)
-        {
-            if (!IsAdmin() && GetTokenPatientId() != patientId) return Forbid();
-
-            var results = await BaseQuery()
-                .Where(a => a.PatientId == patientId)
+            var appointments = await query
                 .OrderByDescending(a => a.AppointmentDate)
+                .ThenBy(a => a.QueueNumber)
+                .Select(a => new AppointmentResponseDto
+                {
+                    Id = a.Id,
+                    PatientId = a.PatientId,
+                    PatientName = a.PatientName,
+                    PatientPhone = a.PatientPhone,
+                    DoctorId = a.DoctorId,
+                    DoctorName = a.DoctorName,
+                    HospitalId = a.HospitalId,
+                    HospitalName = a.HospitalName,
+                    AppointmentDate = a.AppointmentDate,
+                    QueueNumber = a.QueueNumber,
+                    Status = a.Status,
+                    CreatedAt = a.CreatedAt
+                })
                 .ToListAsync();
 
-            return Ok(results.Select(ToDto));
+            return Ok(appointments);
         }
 
-        // ---------- GET /api/appointments/doctor/{doctorId}  (own only — rule 6.4) ----------
-        [HttpGet("doctor/{doctorId}")]
-        [Authorize(Roles = "Doctor,Admin")]
-        public async Task<IActionResult> GetByDoctor(int doctorId, [FromQuery] string? status)
+        // GET: api/appointments/5
+        [HttpGet("{id}")]
+        public async Task<ActionResult<AppointmentResponseDto>> GetById(int id)
         {
-            // The core rule: role alone is not enough. A doctor's token doctorId
-            // must match the doctorId being requested, or it's a 403, not an
-            // empty/filtered list.
-            if (!IsAdmin() && GetTokenDoctorId() != doctorId) return Forbid();
+            var appointment = await _context.Appointments.FindAsync(id);
+            if (appointment == null)
+            {
+                return NotFound(new { message = $"Appointment with ID {id} not found." });
+            }
 
-            var query = BaseQuery().Where(a => a.DoctorId == doctorId);
-            if (!string.IsNullOrWhiteSpace(status))
-                query = query.Where(a => a.Status == status);
-
-            var results = await query.OrderBy(a => a.AppointmentDate).ThenBy(a => a.QueueNumber).ToListAsync();
-            return Ok(results.Select(ToDto));
+            return Ok(new AppointmentResponseDto
+            {
+                Id = appointment.Id,
+                PatientId = appointment.PatientId,
+                PatientName = appointment.PatientName,
+                PatientPhone = appointment.PatientPhone,
+                DoctorId = appointment.DoctorId,
+                DoctorName = appointment.DoctorName,
+                HospitalId = appointment.HospitalId,
+                HospitalName = appointment.HospitalName,
+                AppointmentDate = appointment.AppointmentDate,
+                QueueNumber = appointment.QueueNumber,
+                Status = appointment.Status,
+                CreatedAt = appointment.CreatedAt
+            });
         }
 
-        // ---------- POST /api/appointments ----------
+        // POST: api/appointments
         [HttpPost]
-        [Authorize(Roles = "Patient,Admin")]
-        public async Task<IActionResult> Create([FromBody] AppointmentCreateDto dto)
+        public async Task<ActionResult<AppointmentResponseDto>> Create([FromBody] AppointmentCreateDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            // Resolve the booking patient: patients always book for themselves;
-            // only Admin may specify a different PatientId.
-            int patientId;
-            if (GetRole() == "Patient")
+            if (!ModelState.IsValid)
             {
-                patientId = GetTokenPatientId() ?? 0;
-            }
-            else
-            {
-                if (dto.PatientId is null or 0)
-                    return BadRequest(new { message = "PatientId is required for admin bookings" });
-                patientId = dto.PatientId.Value;
+                return BadRequest(ModelState);
             }
 
-            var patientExists = await _db.Patients.AnyAsync(p => p.Id == patientId);
-            if (!patientExists) return BadRequest(new { message = "Patient does not exist" });
+            // Look up or Auto-Create Patient record to satisfy Foreign Key
+            var patient = await _context.Patients.FirstOrDefaultAsync(p => 
+                p.FullName.ToLower() == dto.PatientName.Trim().ToLower() && 
+                p.PhoneNumber == dto.PatientPhone.Trim());
 
-            var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == dto.DoctorId);
-            if (doctor == null) return BadRequest(new { message = "Doctor does not exist" });
+            if (patient == null)
+            {
+                patient = new Patient
+                {
+                    FullName = dto.PatientName.Trim(),
+                    PhoneNumber = dto.PatientPhone.Trim(),
+                    NIC = "V" + DateTime.UtcNow.Ticks.ToString().Substring(10),
+                    District = "General"
+                };
+                await _context.Patients.AddAsync(patient);
+                await _context.SaveChangesAsync();
+            }
 
-            if (dto.AppointmentDate.Date < DateTime.UtcNow.Date)
-                return BadRequest(new { message = "Appointment date cannot be in the past" });
+            // Look up Doctor and Hospital names
+            string doctorName = dto.DoctorName;
+            var doc = await _context.Doctors.FindAsync(dto.DoctorId);
+            if (doc != null)
+            {
+                doctorName = doc.FullName;
+            }
 
-            if (string.IsNullOrWhiteSpace(dto.Reason))
-                return BadRequest(new { message = "Reason is required" });
+            string hospitalName = dto.HospitalName;
+            var hosp = await _context.Hospitals.FindAsync(dto.HospitalId);
+            if (hosp != null)
+            {
+                hospitalName = hosp.Name;
+            }
 
-            var duplicate = await _db.Appointments.AnyAsync(a =>
-                a.DoctorId == dto.DoctorId &&
-                a.AppointmentDate.Date == dto.AppointmentDate.Date &&
-                a.AppointmentTime == dto.AppointmentTime &&
-                a.Status != "Cancelled");
-            if (duplicate)
-                return Conflict(new { message = "This doctor already has a booking at that date and time" });
+            // Auto-calculate Queue Number for this Doctor on this date
+            var dateOnly = dto.AppointmentDate.Date;
+            var maxQueue = await _context.Appointments
+                .Where(a => a.DoctorId == dto.DoctorId && a.AppointmentDate.Date == dateOnly)
+                .Select(a => (int?)a.QueueNumber)
+                .MaxAsync() ?? 0;
 
-            // Auto-generate sequential queue number per doctor per day.
-            var queueNumber = await _db.Appointments
-                .Where(a => a.DoctorId == dto.DoctorId && a.AppointmentDate.Date == dto.AppointmentDate.Date)
-                .CountAsync() + 1;
+            int nextQueueNumber = maxQueue + 1;
 
             var appointment = new Appointment
             {
-                PatientId = patientId,
+                PatientId = patient.Id,
+                PatientName = dto.PatientName.Trim(),
+                PatientPhone = dto.PatientPhone.Trim(),
                 DoctorId = dto.DoctorId,
-                AppointmentDate = dto.AppointmentDate.Date,
-                AppointmentTime = dto.AppointmentTime,
-                Reason = dto.Reason,
-                QueueNumber = queueNumber,
-                Status = "Pending"
+                DoctorName = string.IsNullOrWhiteSpace(doctorName) ? "Doctor" : doctorName.Trim(),
+                HospitalId = dto.HospitalId,
+                HospitalName = string.IsNullOrWhiteSpace(hospitalName) ? "Hospital" : hospitalName.Trim(),
+                AppointmentDate = dto.AppointmentDate,
+                QueueNumber = nextQueueNumber,
+                Status = "Confirmed",
+                CreatedAt = DateTime.UtcNow
             };
 
-            _db.Appointments.Add(appointment);
-            await _db.SaveChangesAsync();
+            await _context.Appointments.AddAsync(appointment);
+            await _context.SaveChangesAsync();
 
-            var saved = await BaseQuery().FirstAsync(a => a.Id == appointment.Id);
-            return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, ToDto(saved));
-        }
-
-        // ---------- PUT /api/appointments/{id}  (ownership check, edit own booking) ----------
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] AppointmentUpdateDto dto)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            var appt = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == id);
-            if (appt == null) return NotFound();
-
-            if (!IsAdmin())
+            var response = new AppointmentResponseDto
             {
-                var role = GetRole();
-                if (role == "Patient" && appt.PatientId != GetTokenPatientId()) return Forbid();
-                if (role == "Doctor" && appt.DoctorId != GetTokenDoctorId()) return Forbid();
-            }
+                Id = appointment.Id,
+                PatientId = appointment.PatientId,
+                PatientName = appointment.PatientName,
+                PatientPhone = appointment.PatientPhone,
+                DoctorId = appointment.DoctorId,
+                DoctorName = appointment.DoctorName,
+                HospitalId = appointment.HospitalId,
+                HospitalName = appointment.HospitalName,
+                AppointmentDate = appointment.AppointmentDate,
+                QueueNumber = appointment.QueueNumber,
+                Status = appointment.Status,
+                CreatedAt = appointment.CreatedAt
+            };
 
-            var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == dto.DoctorId);
-            if (doctor == null) return BadRequest(new { message = "Doctor does not exist" });
-
-            if (dto.AppointmentDate.Date < DateTime.UtcNow.Date)
-                return BadRequest(new { message = "Appointment date cannot be in the past" });
-
-            if (string.IsNullOrWhiteSpace(dto.Reason))
-                return BadRequest(new { message = "Reason is required" });
-
-            var duplicate = await _db.Appointments.AnyAsync(a =>
-                a.Id != id &&
-                a.DoctorId == dto.DoctorId &&
-                a.AppointmentDate.Date == dto.AppointmentDate.Date &&
-                a.AppointmentTime == dto.AppointmentTime &&
-                a.Status != "Cancelled");
-            if (duplicate)
-                return Conflict(new { message = "This doctor already has a booking at that date and time" });
-
-            appt.DoctorId = dto.DoctorId;
-            appt.AppointmentDate = dto.AppointmentDate.Date;
-            appt.AppointmentTime = dto.AppointmentTime;
-            appt.Reason = dto.Reason;
-
-            await _db.SaveChangesAsync();
-            var saved = await BaseQuery().FirstAsync(a => a.Id == appt.Id);
-            return Ok(ToDto(saved));
+            return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, response);
         }
 
-        // ---------- PUT /api/appointments/{id}/status  (Doctor/Admin, own only) ----------
+        // PUT: api/appointments/5/status
         [HttpPut("{id}/status")]
-        [Authorize(Roles = "Doctor,Admin")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] AppointmentStatusUpdateDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var appointment = await _context.Appointments.FindAsync(id);
+            if (appointment == null)
+            {
+                return NotFound(new { message = $"Appointment with ID {id} not found." });
+            }
 
-            var appt = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == id);
-            if (appt == null) return NotFound();
+            appointment.Status = dto.Status.Trim();
+            await _context.SaveChangesAsync();
 
-            if (!IsAdmin() && appt.DoctorId != GetTokenDoctorId()) return Forbid();
-
-            appt.Status = dto.Status;
-            await _db.SaveChangesAsync();
-
-            var saved = await BaseQuery().FirstAsync(a => a.Id == appt.Id);
-            return Ok(ToDto(saved));
+            return Ok(new { message = $"Appointment #{id} status updated to {appointment.Status}." });
         }
 
-        // ---------- DELETE /api/appointments/{id}  (ownership check) ----------
+        // DELETE: api/appointments/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var appt = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == id);
-            if (appt == null) return NotFound();
-
-            if (!IsAdmin())
+            var appointment = await _context.Appointments.FindAsync(id);
+            if (appointment == null)
             {
-                var role = GetRole();
-                if (role == "Patient" && appt.PatientId != GetTokenPatientId()) return Forbid();
-                if (role == "Doctor" && appt.DoctorId != GetTokenDoctorId()) return Forbid();
+                return NotFound(new { message = $"Appointment with ID {id} not found." });
             }
 
-            _db.Appointments.Remove(appt);
-            await _db.SaveChangesAsync();
+            _context.Appointments.Remove(appointment);
+            await _context.SaveChangesAsync();
             return NoContent();
         }
     }

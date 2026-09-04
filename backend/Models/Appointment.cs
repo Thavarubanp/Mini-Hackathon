@@ -1,41 +1,40 @@
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace backend.Models
 {
     public class Appointment
     {
+        [Key]
         public int Id { get; set; }
 
         [Required]
         public int PatientId { get; set; }
-
-        [ForeignKey(nameof(PatientId))]
-        public Patient? Patient { get; set; }
+        public string PatientName { get; set; } = string.Empty;
+        public string PatientPhone { get; set; } = string.Empty;
 
         [Required]
         public int DoctorId { get; set; }
-
-        [ForeignKey(nameof(DoctorId))]
-        public Doctor? Doctor { get; set; }
+        public string DoctorName { get; set; } = string.Empty;
 
         [Required]
-        public DateTime AppointmentDate { get; set; } // date only, time kept separate
+        public int HospitalId { get; set; }
+        public string HospitalName { get; set; } = string.Empty;
 
         [Required]
-        public TimeSpan AppointmentTime { get; set; }
+        public DateTime AppointmentDate { get; set; }
 
-        [Required]
-        [MaxLength(300)]
         public string Reason { get; set; } = string.Empty;
 
         public int QueueNumber { get; set; }
 
-        // Pending | Confirmed | Completed | Cancelled
-        [MaxLength(20)]
-        public string Status { get; set; } = "Pending";
+        public string Status { get; set; } = "Confirmed";
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        // Navigation properties
+        public Hospital? Hospital { get; set; }
+        public Doctor? Doctor { get; set; }
+        public Patient? Patient { get; set; }
     }
 }
