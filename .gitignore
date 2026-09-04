@@ -1,0 +1,156 @@
+# ============================================
+# MediConnect - .gitignore
+# ASP.NET Core + React/Vite + PostgreSQL
+# ============================================
+
+
+# ============================================
+# ENVIRONMENT VARIABLES & SECRETS
+# ============================================
+
+.env
+.env.*
+!.env.example
+
+# ASP.NET Core local configuration
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# User secrets
+**/secrets.json
+**/secrets/
+**/UserSecrets/
+
+# Certificates / private keys
+*.pfx
+*.p12
+*.key
+*.pem
+
+
+# ============================================
+# ASP.NET CORE / .NET
+# ============================================
+
+**/bin/
+**/obj/
+
+.vs/
+.vscode/
+
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+
+# ============================================
+# REACT / NODE / VITE
+# ============================================
+
+**/node_modules/
+
+**/dist/
+**/build/
+**/.vite/
+
+# npm logs
+npm-debug.log*
+npm-error.log*
+
+# Yarn
+yarn-debug.log*
+yarn-error.log*
+
+# pnpm
+pnpm-debug.log*
+
+
+# ============================================
+# TESTING / COVERAGE
+# ============================================
+
+coverage/
+TestResults/
+*.trx
+
+
+# ============================================
+# DATABASE / LOCAL DATA
+# ============================================
+
+*.db
+*.sqlite
+*.sqlite3
+
+
+# ============================================
+# LOGS
+# ============================================
+
+*.log
+
+
+# ============================================
+# TEMPORARY FILES
+# ============================================
+
+*.tmp
+*.temp
+*.cache
+
+
+# ============================================
+# OPERATING SYSTEM
+# ============================================
+
+# Windows
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+
+# ============================================
+# IDEs
+# ============================================
+
+.idea/
+
+# VS Code - keep useful shared configuration
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+
+# ============================================
+# FRONTEND BUILD / TOOLING
+# ============================================
+
+.eslintcache
+
+
+# ============================================
+# BACKEND GENERATED FILES
+# ============================================
+
+**/publish/
+**/TestResults/
+
+
+# ============================================
+# LOCAL DEVELOPMENT FILES
+# ============================================
+
+*.local
+*.local.json
